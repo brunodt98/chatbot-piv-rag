@@ -1,0 +1,376 @@
+import streamlit as st
+import pandas as pd
+from sqlalchemy import create_engine
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+import plotly.figure_factory as ff
+from groq import Groq
+import json
+import os # Adicionado para construir o caminho do ficheiro
+
+# ===============================
+# Configurações do Banco de Dados (Atualizadas conforme sua solicitação)
+# ===============================
+USUARIO_DB = "root"
+SENHA_DB = "Ca9630"
+HOST_DB = "localhost"
+BANCO_DB = "notificacoes_db"
+# Adicionado crases (`) para lidar com espaços no nome da tabela
+TABELA_DB = "`base original completa`"
+
+# ===============================
+# Configuração da Interface
+# ===============================
+st.set_page_config(layout="wide")
+st.title("Análise Preditiva e Preenchimento com IA (Groq)")
+st.write("Esta aplicação treina um modelo para prever o encaminhamento de pacientes e usa esse modelo para preencher os dados em falta.")
+
+# --- Barra lateral: chave API Groq ---
+st.sidebar.header("Configuração da API Groq")
+st.sidebar.warning("Nunca partilhe a sua chave de API com ninguém nem a coloque diretamente no código.")
+groq_api_key = st.sidebar.text_input("Cole a sua Chave de API da Groq aqui", type="password")
+
+# ===============================
+# Passo 1: Carregar e Preparar os Dados (com 14 Features de Sintomas)
+# ===============================
+@st.cache_data
+def carregar_e_preparar_dados():
+    try:
+        engine = create_engine(f"mysql+pymysql://{USUARIO_DB}:{SENHA_DB}@{HOST_DB}/{BANCO_DB}")
+        
+        # --- SINTOMAS ADICIONADOS ---
+        sintomas_features = [
+            'FEBRE', 'MIALGIA', 'CEFALEIA', 'EXANTEMA', 'VOMITO', 'NAUSEA', 
+            'DOR_COSTAS', 'CONJUNTVIT', 'ARTRITE', 'ARTRALGIA', 'PETEQUIA_N', 
+            'LEUCOPENIA', 'LACO', 'DOR_RETRO'
+        ]
+        sintomas_select = ", ".join([f"`{col}`" for col in sintomas_features]) 
+
+        colunas_base = ['NU_ANO', 'ANO_NASC', 'CS_SEXO', 'ID_MUNICIP', 'Estabelecimento']
+        colunas_base_select = ", ".join([f"`{col}`" for col in colunas_base])
+
+        query = f"""
+            SELECT 
+                {colunas_base_select},
+                {sintomas_select}
+            FROM {TABELA_DB}
+        """
+        
+        df = pd.read_sql_query(query, engine)
+        
+    except Exception as e:
+        st.error(f"Erro ao conectar ao banco de dados: {e}")
+        st.info("Verifique se o MySQL está em execução e se as credenciais (USUARIO_DB, SENHA_DB, etc.) estão corretas.")
+        st.info(f"Verifique também se a tabela {TABELA_DB} contém todas as 14 colunas de sintomas (FEBRE, MIALGIA, etc.).")
+        return pd.DataFrame(), pd.DataFrame() # Retorna dois dataframes vazios
+        
+    # --- PREENCHIMENTO DE DADOS EM FALTA (FILLNA) ---
+    
+    # Conversão segura para numérico
+    df['NU_ANO'] = pd.to_numeric(df['NU_ANO'], errors='coerce')
+    df['ANO_NASC'] = pd.to_numeric(df['ANO_NASC'], errors='coerce')
+
+    # Calcular IDADE (pode conter nulos se NU_ANO ou ANO_NASC forem nulos)
+    df['IDADE'] = df['NU_ANO'] - df['ANO_NASC']
+    
+    # Preencher IDADE nula ou inválida com a média
+    idade_media = df['IDADE'].mean()
+    df['IDADE'].fillna(idade_media, inplace=True)
+    
+    # Preencher CS_SEXO nulo com "Indefinido"
+    df['CS_SEXO'].fillna('Indefinido', inplace=True)
+    
+    # Preencher ID_MUNICIP nulo com "0" (como string, para ser categórico)
+    df['ID_MUNICIP'].fillna('0', inplace=True)
+    # Garantir que ID_MUNICIP é tratado como string (categoria)
+    df['ID_MUNICIP'] = df['ID_MUNICIP'].astype(str)
+
+    def categorizar_estabelecimento(nome):
+        # Se nome for NaN (nulo), retorna nulo
+        if pd.isna(nome):
+            return pd.NA
+        nome = str(nome).upper()
+        if 'HOSPITAL' in nome:
+            return 'HOSPITAL'
+        if 'UPA' in nome:
+            return 'UPA'
+        if 'UBS' in nome or 'UNIDADE BASICA' in nome:
+            return 'UBS'
+        return 'OUTROS'
+            
+    df['TIPO_UNIDADE'] = df['Estabelecimento'].apply(categorizar_estabelecimento)
+    
+    # --- LIMPEZA DE SINTOMAS (MANTIDA) ---
+    for col in sintomas_features:
+        # Preencher NaNs nos sintomas com '2' (Não)
+        df[col].fillna('2', inplace=True) 
+        df[col] = df[col].astype(str).str.strip()
+        df[col] = df[col].str.replace('.0', '', regex=False).map({'1': '1'}).fillna('2')
+
+    # --- NOVA LÓGICA: SEPARAR DADOS DE TREINO E DADOS A PREVER ---
+    
+    # df_treino contém linhas onde TIPO_UNIDADE (e Estabelecimento) NÃO são nulos
+    df_treino = df[df['TIPO_UNIDADE'].notna()].copy()
+    
+    # df_prever contém linhas onde TIPO_UNIDADE (e Estabelecimento) SÃO nulos
+    df_prever = df[df['TIPO_UNIDADE'].isna()].copy()
+    
+    st.success(f"Dados carregados! Total: {len(df)} linhas.")
+    st.info(f"Encontradas {len(df_treino)} linhas para TREINAR o modelo.")
+    st.info(f"Encontradas {len(df_prever)} linhas para PREENCHER com o modelo.")
+
+    return df_treino, df_prever
+
+df_treino, df_prever = carregar_e_preparar_dados()
+
+if df_treino.empty:
+    st.error("Não foram encontrados dados suficientes para TREINAR o modelo (linhas com 'Estabelecimento' preenchido).")
+    st.stop()
+
+# ===============================
+# Passo 2: Treinar o Modelo SVM (com 14 Features de Sintomas)
+# ===============================
+st.header("1. Treino do Modelo SVM")
+st.write(f"O modelo SVM será treinado com as {len(df_treino)} linhas que possuem dados completos de encaminhamento.")
+
+# --- SINTOMAS ADICIONADOS ---
+sintomas_features = [
+    'FEBRE', 'MIALGIA', 'CEFALEIA', 'EXANTEMA', 'VOMITO', 'NAUSEA', 
+    'DOR_COSTAS', 'CONJUNTVIT', 'ARTRITE', 'ARTRALGIA', 'PETEQUIA_N', 
+    'LEUCOPENIA', 'LACO', 'DOR_RETRO'
+]
+features = ['IDADE', 'CS_SEXO', 'ID_MUNICIP'] + sintomas_features
+
+# X e y vêm apenas do df_treino
+X = df_treino[features]
+y = df_treino['TIPO_UNIDADE']
+
+if y.nunique() < 2:
+    st.error(f"A coluna alvo (TIPO_UNIDADE) tem menos de 2 classes únicas nos dados de treino ({y.unique()}). Não é possível treinar o modelo.")
+    st.stop()
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+numeric_features = ['IDADE']
+categorical_features = ['CS_SEXO', 'ID_MUNICIP'] + sintomas_features
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', StandardScaler(), numeric_features),
+        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
+    ]
+)
+
+pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('classifier', SVC(kernel='rbf', random_state=42, class_weight='balanced'))
+])
+
+with st.spinner(f"A treinar o modelo SVM com {len(X_train)} amostras..."):
+    pipeline.fit(X_train, y_train)
+y_pred = pipeline.predict(X_test)
+
+st.success("Modelo treinado com sucesso!")
+
+# ===============================
+# Passo 3: Performance do Modelo (Nos dados de teste)
+# ===============================
+st.header("2. Performance do Modelo (nos dados de teste)")
+st.write("Esta é a performance do modelo ao prever os dados de teste (dados que ele nunca viu, mas que tinham a resposta correta).")
+report_dict = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+df_report = pd.DataFrame(report_dict).transpose()
+st.text("Relatório de Classificação:")
+st.dataframe(df_report)
+
+# --- Matriz de Confusão ---
+st.write("Matriz de Confusão (valores exatos):")
+cm = confusion_matrix(y_test, y_pred)
+labels = sorted(y_test.unique())
+cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+st.dataframe(cm_df)
+
+fig_cm = ff.create_annotated_heatmap(
+    z=cm,
+    x=labels,
+    y=labels,
+    colorscale='Viridis',
+    showscale=True
+)
+fig_cm.update_layout(
+    title_text='<b>Real (Y) vs. Previsto (X)</b>',
+    xaxis_title='Previsto pelo Modelo',
+    yaxis_title='Valor Real'
+)
+st.plotly_chart(fig_cm, use_container_width=True)
+
+# ===============================
+# Passo 4: PREENCHER OS DADOS EM FALTA
+# ===============================
+st.header("3. Preenchimento dos Dados Nulos")
+
+if df_prever.empty:
+    st.info("Não foram encontradas linhas com `Estabelecimento` nulo. A base de dados já estava completa.")
+    df_final = df_treino.copy()
+else:
+    st.write(f"A usar o modelo treinado para prever o `TIPO_UNIDADE` das {len(df_prever)} linhas em falta...")
+    
+    # Preparar os dados a prever (apenas as features)
+    X_para_prever = df_prever[features]
+    
+    # Usar o pipeline treinado para prever
+    with st.spinner("A classificar os dados nulos..."):
+        previsoes_nulos = pipeline.predict(X_para_prever)
+    
+    # Adicionar as previsões ao dataframe df_prever
+    df_prever['TIPO_UNIDADE'] = previsoes_nulos
+    
+    st.success("Dados nulos preenchidos com sucesso!")
+    
+    # Juntar os dados de treino (originais) com os dados agora preenchidos
+    df_final = pd.concat([df_treino, df_prever], ignore_index=True)
+
+# ===============================
+# Passo 5: Resultado Final e Agrupamento (na base completa)
+# ===============================
+st.header("4. Resultado: Base de Dados Completa")
+st.write(f"Abaixo está a distribuição da coluna `TIPO_UNIDADE` para todas as **{len(df_final)}** linhas, após o preenchimento dos nulos.")
+
+st.write("Distribuição do `TIPO_UNIDADE` (Base Completa):")
+st.bar_chart(df_final['TIPO_UNIDADE'].value_counts())
+
+st.write("Amostra da Base de Dados Completa (com previsões):")
+st.dataframe(df_final[['IDADE', 'CS_SEXO', 'ID_MUNICIP', 'FEBRE', 'TIPO_UNIDADE']].head())
+
+# --- Agrupamento (feito na base de dados final completa) ---
+st.header("5. Agrupamento 2D (PCA + KMeans) - Na Base Completa")
+
+# Pré-processamento (agora usa features com sintomas de TODA a base)
+X_proc_final = preprocessor.transform(df_final[features]) # Usar transform, não fit_transform
+
+# PCA para reduzir para 2D
+pca = PCA(n_components=2)
+X_2d_final = pca.fit_transform(X_proc_final)
+
+# Método do Cotovelo
+st.subheader("Método do Cotovelo para escolher K (Base Completa)")
+inertia = []
+K_range = range(1, 10)
+for k in K_range:
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    kmeans.fit(X_2d_final)
+    inertia.append(kmeans.inertia_)
+
+fig_elbow, ax_elbow = plt.subplots(figsize=(6,4))
+ax_elbow.plot(K_range, inertia, 'bo-')
+ax_elbow.set_xlabel("Número de clusters (k)")
+ax_elbow.set_ylabel("Inertia")
+ax_elbow.set_title("Método do Cotovelo")
+st.pyplot(fig_elbow) 
+
+# KMeans final
+kmeans_final = KMeans(n_clusters=3, random_state=42, n_init=10)
+clusters = kmeans_final.fit_predict(X_2d_final)
+
+# Gráfico 2D por sexo
+st.subheader("Visualização dos Clusters por Sexo (Base Completa)")
+fig_cluster, ax_cluster = plt.subplots(figsize=(8,6)) 
+
+for sexo in df_final['CS_SEXO'].unique():
+    idx = (df_final['CS_SEXO'] == sexo).values
+    ax_cluster.scatter(X_2d_final[idx,0], X_2d_final[idx,1], label=sexo, alpha=0.6)
+
+ax_cluster.scatter(kmeans_final.cluster_centers_[:,0], kmeans_final.cluster_centers_[:,1], 
+            color='black', marker='X', s=100, label='Centroides')
+
+ax_cluster.set_xlabel("PCA 1") 
+ax_cluster.set_ylabel("PCA 2") 
+ax_cluster.set_title("Agrupamento 2D por Sexo (Base Completa)") 
+ax_cluster.legend() 
+
+st.pyplot(fig_cluster)
+
+# ===============================
+# Passo 6: Integração com a IA Groq (Contexto Atualizado)
+# ===============================
+st.header("6. Análise com IA Generativa (Groq)")
+
+if not groq_api_key:
+    st.warning("Por favor, insira a sua chave de API da Groq na barra lateral para ativar o assistente de IA.")
+else:
+    st.info("O assistente de IA está pronto! Faça uma pergunta sobre os resultados do modelo.")
+
+    prompt_usuario = st.text_area(
+        "Faça uma pergunta sobre os resultados do modelo ou sobre a base:",
+        "Ex: 'O modelo de treino foi bom?' ou 'Qual o TIPO_UNIDADE mais comum após o preenchimento?'"
+    )
+
+    enviar_pergunta = st.button("Enviar Pergunta à IA")
+
+    if enviar_pergunta and prompt_usuario.strip() != "":
+        try:
+            with st.spinner("A IA está a pensar..."):
+                client = Groq(api_key=groq_api_key)
+                
+                modelo_a_usar = "meta-llama/llama-4-maverick-17b-128e-instruct" 
+
+                sintomas_features = [
+                    'FEBRE', 'MIALGIA', 'CEFALEIA', 'EXANTEMA', 'VOMITO', 'NAUSEA', 
+                    'DOR_COSTAS', 'CONJUNTVIT', 'ARTRITE', 'ARTRALGIA', 'PETEQUIA_N', 
+                    'LEUCOPENIA', 'LACO', 'DOR_RETRO'
+                ]
+
+                # --- PROMPT ATUALIZADO PARA REFLETIR O PREENCHIMENTO ---
+                prompt_completo = f"""
+Aja como um cientista de dados especialista e amigável.
+
+Contexto:
+O objetivo era preencher os dados em falta da coluna `TIPO_UNIDADE` numa base de dados de {len(df_final)} linhas.
+1. Foi carregada a base de dados. {len(df_treino)} linhas tinham `TIPO_UNIDADE` (HOSPITAL, UPA, etc.) e {len(df_prever)} linhas estavam nulas.
+2. Foi treinado um modelo SVM (usando as {len(df_treino)} linhas completas) para prever o `TIPO_UNIDADE`.
+3. As features usadas no treino foram: idade, sexo, município e os 14 sintomas: {', '.join(sintomas_features)}.
+4. Este modelo treinado foi usado para prever e preencher as {len(df_prever)} linhas nulas.
+
+Resultados do Modelo (Baseado no Treino/Teste das {len(df_treino)} linhas):
+1. Relatório de Classificação (Performance do modelo):
+{df_report.to_string()}
+
+2. Matriz de Confusão (Performance do modelo):
+- Labels: {labels}
+- Matriz (JSON): {cm.tolist()}
+
+Resultados Finais (Após Preenchimento):
+- Total de Linhas na Base Final: {len(df_final)}
+- Distribuição de TIPO_UNIDADE na Base Final:
+{df_final['TIPO_UNIDADE'].value_counts().to_string()}
+
+Pergunta do Usuário:
+"{prompt_usuario}"
+
+Sua Tarefa:
+Responda de forma clara e objetiva, em português do Brasil.
+- Se a pergunta for sobre a performance do modelo (ex: 'O modelo é bom?'), use o Relatório de Classificação e a Matriz de Confusão (Resultados do Modelo).
+- Se a pergunta for sobre os dados finais (ex: 'Qual o tipo mais comum?'), use os Resultados Finais.
+"""
+
+                chat_completion = client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt_completo}],
+                    model=modelo_a_usar,
+                )
+
+                response_text = chat_completion.choices[0].message.content
+
+            st.subheader("Resposta da IA:")
+            st.markdown(response_text)
+
+        except Exception as e:
+            st.error(f"Ocorreu um erro ao chamar a API da Groq: {e}")
+            st.info(f"Verifique se a sua chave de API Groq é válida e se o modelo '{modelo_a_usar}' está acessível.")
