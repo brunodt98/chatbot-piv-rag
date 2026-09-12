@@ -8,13 +8,25 @@ import yaml
 
 PROMPTS_FILE = Path(__file__).parent / "prompts.yaml"
 
+PLACEHOLDERS_ESPERADOS = {
+    "hyde": {"user_input"},
+    "answer": {"user_input", "context", "history"},
+}
 
-def carregar_prompt(versao=None):
-    """
-    Devolve (versao, template) do prompts.yaml.
 
-    Se versao for None, usa a chave default do arquivo.
+def carregar_prompt(tipo, versao=None):
     """
+    Devolve (versao, template) do prompts.yaml para o `tipo` indicado
+    ("hyde" ou "answer").
+
+    Se `versao` for None, usa a chave `default` da seção do tipo.
+    """
+
+    if tipo not in PLACEHOLDERS_ESPERADOS:
+        raise SystemExit(
+            f"Tipo de prompt desconhecido: '{tipo}'. "
+            f"Esperado: {', '.join(PLACEHOLDERS_ESPERADOS)}"
+        )
 
     if not PROMPTS_FILE.exists():
         raise SystemExit(
@@ -25,26 +37,27 @@ def carregar_prompt(versao=None):
         PROMPTS_FILE.read_text(encoding="utf-8")
     ) or {}
 
-    prompts = dados.get("prompts") or {}
+    secao = dados.get(tipo) or {}
+    prompts = secao.get("prompts") or {}
 
     if not prompts:
         raise SystemExit(
-            f"Nenhum prompt definido em {PROMPTS_FILE.name}."
+            f"Nenhum prompt definido para '{tipo}' em {PROMPTS_FILE.name}."
         )
 
-    versao = versao or dados.get("default")
+    versao = versao or secao.get("default")
 
     if not versao:
         raise SystemExit(
-            f"Defina PROMPT_VERSION no .env ou "
-            f"a chave `default` em {PROMPTS_FILE.name}."
+            f"Defina a versão explicitamente ou a chave `default` "
+            f"na seção '{tipo}' de {PROMPTS_FILE.name}."
         )
 
     if versao not in prompts:
         disponiveis = ", ".join(sorted(prompts))
 
         raise SystemExit(
-            f"Versão de prompt '{versao}' não existe em "
+            f"Versão de prompt '{versao}' não existe para '{tipo}' em "
             f"{PROMPTS_FILE.name}.\n"
             f"Disponíveis: {disponiveis}"
         )
@@ -53,14 +66,22 @@ def carregar_prompt(versao=None):
 
     if not template:
         raise SystemExit(
-            f"A versão '{versao}' não tem o campo `template`."
+            f"A versão '{tipo}/{versao}' não tem o campo `template`."
         )
 
-    # Verifica os placeholders existentes no YAML
+    # Verifica se os placeholders obrigatórios existem no template
     campos = {
         nome
         for _, nome, _, _ in Formatter().parse(template)
         if nome
     }
+
+    faltando = PLACEHOLDERS_ESPERADOS[tipo] - campos
+
+    if faltando:
+        raise SystemExit(
+            f"O template '{tipo}/{versao}' não contém os placeholders "
+            f"obrigatórios: {', '.join(sorted(faltando))}"
+        )
 
     return versao, template

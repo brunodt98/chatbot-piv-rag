@@ -1,0 +1,193 @@
+{
+  "k": 5,
+  "recall_at_k": 0.9166666666666666,
+  "tempo_medio_segundos": 0.752466974999758,
+  "resultados": [
+    {
+      "id": "q01",
+      "pergunta": "O que é o ICMS?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "circulação de mercadorias",
+          "transporte interestadual"
+        ],
+        "tempo": 1.2283754000000044,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q02",
+      "pergunta": "Quem é considerado contribuinte do ICMS?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "habitual",
+          "intuito comercial"
+        ],
+        "tempo": 0.6627198999995016,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q03",
+      "pergunta": "Qual é a regra geral da base de cálculo do ICMS?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "valor da operação"
+        ],
+        "tempo": 0.7515279999988707,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q04",
+      "pergunta": "O que integra a base de cálculo do ICMS além do valor da mercadoria?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "frete"
+        ],
+        "tempo": 0.7197990000004211,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q05",
+      "pergunta": "Quando falta o valor da operação, quais critérios substitutos são usados para a base de cálculo?",
+      "baseline": {
+        "acertou": false,
+        "keywords_encontradas": [],
+        "tempo": 0.8117177999993146,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q06",
+      "pergunta": "Como se calcula a base de cálculo em operações entre estabelecimentos do mesmo titular?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "valor da entrada mais recente",
+          "custo da mercadoria produzida"
+        ],
+        "tempo": 0.8116590999998152,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q07",
+      "pergunta": "Qual a base de cálculo quando o serviço é prestado sem preço determinado?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "valor corrente do serviço"
+        ],
+        "tempo": 0.6380802000003314,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q08",
+      "pergunta": "O que é a substituição tributária do ICMS (ICMS-ST)?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "operações"
+        ],
+        "tempo": 0.6440796999995655,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q09",
+      "pergunta": "O que representa o IVA-ST?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "margem"
+        ],
+        "tempo": 0.45784439999988535,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q10",
+      "pergunta": "Qual é a fórmula do IVA-ST ajustado?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "alq inter",
+          "alq intra",
+          "iva-st original"
+        ],
+        "tempo": 0.5319958000000042,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q11",
+      "pergunta": "Qual o prazo para impugnação do percentual ou preço publicado no levantamento de preços?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "10 dias"
+        ],
+        "tempo": 1.204421700000239,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    },
+    {
+      "id": "q12",
+      "pergunta": "O que deve ser considerado no levantamento da média ponderada do preço ao consumidor final?",
+      "baseline": {
+        "acertou": true,
+        "keywords_encontradas": [
+          "preço de venda",
+          "varejo",
+          "frete",
+          "seguro"
+        ],
+        "tempo": 0.5673826999991434,
+        "fontes": [
+          "Documento sem título (5) (1).docx",
+          "ICMS_SP_material_resumido_com_formulas_legislacao (1).docx"
+        ]
+      }
+    }
+  ]
+}

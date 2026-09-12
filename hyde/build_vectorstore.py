@@ -2,8 +2,9 @@ from pathlib import Path
 
 from langchain_community.document_loaders import Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
+
+import rag_core
 
 
 # ============================================================
@@ -13,9 +14,9 @@ from langchain_community.vectorstores import FAISS
 BASE_DIR = Path(__file__).parent
 
 DOCUMENTOS_DIR = BASE_DIR / "documentos"
-VECTORSTORE_DIR = (BASE_DIR / "vectorstore").resolve()
+VECTORSTORE_DIR = rag_core.VECTORSTORE_DIR.resolve()
 
-EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+EMBEDDING_MODEL = rag_core.EMBEDDING_MODEL
 
 
 # ============================================================
@@ -75,15 +76,7 @@ print(
 
 print("\nCarregando modelo de embeddings...")
 
-embeddings = HuggingFaceEmbeddings(
-    model_name=EMBEDDING_MODEL,
-    model_kwargs={
-        "device": "cpu"
-    },
-    encode_kwargs={
-        "normalize_embeddings": True
-    },
-)
+embeddings = rag_core.get_embeddings()
 
 print("Embeddings carregados.")
 

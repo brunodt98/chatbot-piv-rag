@@ -1,0 +1,65 @@
+{
+  "descricao": "Conjunto de perguntas de avaliação sobre ICMS/SP, extraídas manualmente do conteúdo real de hyde/documentos/. Cada item traz palavras-chave que DEVEM aparecer nos chunks recuperados (avaliação de retrieval) e, quando aplicável, na resposta final gerada pelo LLM (avaliação de geração).",
+  "perguntas": [
+    {
+      "id": "q01",
+      "pergunta": "O que é o ICMS?",
+      "keywords_retrieval": ["circulação de mercadorias", "transporte interestadual"]
+    },
+    {
+      "id": "q02",
+      "pergunta": "Quem é considerado contribuinte do ICMS?",
+      "keywords_retrieval": ["habitual", "intuito comercial"]
+    },
+    {
+      "id": "q03",
+      "pergunta": "Qual é a regra geral da base de cálculo do ICMS?",
+      "keywords_retrieval": ["valor da operação", "valor da prestação"]
+    },
+    {
+      "id": "q04",
+      "pergunta": "O que integra a base de cálculo do ICMS além do valor da mercadoria?",
+      "keywords_retrieval": ["seguros", "juros", "frete"]
+    },
+    {
+      "id": "q05",
+      "pergunta": "Quando falta o valor da operação, quais critérios substitutos são usados para a base de cálculo?",
+      "keywords_retrieval": ["fob", "mercado atacadista"]
+    },
+    {
+      "id": "q06",
+      "pergunta": "Como se calcula a base de cálculo em operações entre estabelecimentos do mesmo titular?",
+      "keywords_retrieval": ["valor da entrada mais recente", "custo da mercadoria produzida"]
+    },
+    {
+      "id": "q07",
+      "pergunta": "Qual a base de cálculo quando o serviço é prestado sem preço determinado?",
+      "keywords_retrieval": ["valor corrente do serviço"]
+    },
+    {
+      "id": "q08",
+      "pergunta": "O que é a substituição tributária do ICMS (ICMS-ST)?",
+      "keywords_retrieval": ["responsável recolhe", "operações", "subsequentes"]
+    },
+    {
+      "id": "q09",
+      "pergunta": "O que representa o IVA-ST?",
+      "keywords_retrieval": ["índice de valor adicionado setorial", "margem"]
+    },
+    {
+      "id": "q10",
+      "pergunta": "Qual é a fórmula do IVA-ST ajustado?",
+      "keywords_retrieval": ["alq inter", "alq intra", "iva-st original"]
+    },
+    {
+      "id": "q11",
+      "pergunta": "Qual o prazo para impugnação do percentual ou preço publicado no levantamento de preços?",
+      "keywords_retrieval": ["10 dias"]
+    },
+    {
+      "id": "q12",
+      "pergunta": "O que deve ser considerado no levantamento da média ponderada do preço ao consumidor final?",
+      "keywords_retrieval": ["preço de venda", "varejo", "frete", "seguro"]
+    }
+  ]
+}
